@@ -1,4 +1,4 @@
 # ED3-WP1
 
-Libraries: 
+Install libraries: 
 - HX711
