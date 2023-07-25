@@ -15,6 +15,7 @@ void setup() {
 
   Serial.println("Initializing the scale");
 
+  // parameter "gain" is ommited; the default value 128 is used by the library
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 
   Serial.println("Before setting up the scale:");
