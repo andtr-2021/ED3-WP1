@@ -13,6 +13,9 @@ void setup() {
   rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
   Serial.println("HX711 Demo");
 
+
+  
+
   Serial.println("Initializing the scale");
 
   // parameter "gain" is ommited; the default value 128 is used by the library
