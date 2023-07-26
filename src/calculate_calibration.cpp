@@ -15,6 +15,7 @@ void setup() {
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 }
 
+
 void loop() {
 
   if (scale.is_ready()) {
