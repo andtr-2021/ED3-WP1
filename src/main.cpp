@@ -1,6 +1,15 @@
 #include <Arduino.h>
 #include <HX711_ADC.h>
 
+/*
+  NOTE:
+  
+  To weight things on the loadcell: 
+    1. Do not put anything on the loadcell when the loadcell is calibrating.
+    2. After the loadcell calibrated. Put the item in the center of the loadcell.
+
+*/
+
 #define LOADCELL_DT_PIN 16
 #define LOADCELL_SCK_PIN 4
 
@@ -23,6 +32,7 @@ void setup()
 {
   Serial.begin(9600);
   while (!Serial);
+  Serial.println("Starting...");
   Serial.println("Loadcell calibration, please wait.");
   scale.begin();
   scale.start(2000, true);
