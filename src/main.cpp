@@ -4,6 +4,9 @@
 /*
   NOTE:
 
+  Known Weight Iteam:
+  1. Battery: 208 grams.
+  2. Jacob Phone: 177 grams.
 
   When uplading the code to ESP32:
     Keep pressing the boot button while uploading the code to the board.
