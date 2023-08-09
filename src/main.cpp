@@ -3,10 +3,13 @@
 
 /*
   NOTE:
-  
+
+  Keep pressing the boot button while uploading the code to the board.
+
   To weight things on the loadcell: 
     1. Do not put anything on the loadcell when the loadcell is calibrating.
     2. After the loadcell calibrated. Put the item in the center of the loadcell.
+
 
 */
 
@@ -15,7 +18,7 @@
 
 HX711_ADC scale(LOADCELL_DT_PIN, LOADCELL_SCK_PIN);
 
-#define calibration_factor 460 // Depends on the load cell
+#define calibration_factor 430 // Depends on the load cell
 
 volatile boolean newDataReady;
 
@@ -32,14 +35,14 @@ void setup()
 {
   Serial.begin(9600);
   while (!Serial);
-  Serial.println("Starting...");
-  Serial.println("Loadcell calibration, please wait.");
+  // Serial.println("Starting...");
+  // Serial.println("Loadcell calibration, please wait.");
   scale.begin();
   scale.start(2000, true);
   scale.setCalFactor(calibration_factor);
-  Serial.println("Loadcell calibrated. Press any key to start the main program.");
-  while (!Serial.available());
-  Serial.read();
+  // Serial.println("Loadcell calibrated. Press any key to start the main program.");
+  // while (!Serial.available());
+  // Serial.read();
   pinMode(LOADCELL_DT_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(LOADCELL_DT_PIN), dataReadyISR, FALLING);
 }
