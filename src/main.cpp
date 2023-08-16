@@ -15,32 +15,30 @@
 #include <Arduino.h>
 #include "ACS712.h"
 
-
 #define PIN_POTENTIOMETER 36 // ESP32 pin GPIO36 (ADC0) onnected to potentiometer
 #define PIN_ESC         26 // ESP32 pin GPIO26 onnected to servo motor
-
 #define V_SENSOR_PIN  34 // voltage sensor pin
 #define C_SENSOR_PIN  32 // current sensor pin 
 
 Servo esc;  // create servo object to control a servo
 ACS712 sensor(ACS712_05B, C_SENSOR_PIN); // set the 5A current sensor
 
-// Floats for ADC voltage & Input voltage
+// Floats for voltage and current sensors
 float adc_voltage = 0.0;
-float in_voltage = 0.0;
-
+float voltage = 0.0;
+float current = 0.0;
  
-// Floats for resistor values in divider (in ohms)
+// Floats for resistor values in divider (in ohms) in Voltage sensor // do not touch (it is fixed value)
 float R1 = 30000.0;
 float R2 = 7500.0; 
  
 // Float for Reference Voltage
 // float ref_voltage = 25.2; //voltage from the battery
 // default reference value of the sensor is 5V but I can modify it to 3.3 when I connnect with it
- float ref_voltage = 5;
-// Integer for ADC value
-int adc_value = 0;
+ float ref_voltage = 5;  // do not touch (it is fixed value)
 
+// variable for analog voltage sensor reading
+int adc_value = 0;  
 
 #define LOADCELL_DT_PIN 16
 #define LOADCELL_SCK_PIN 4
@@ -98,21 +96,19 @@ void loop() {
   // potentiometer control
   // reads the value of the potentiometer (value between 0 and 4095)
   int analogValue = analogRead(PIN_POTENTIOMETER);
-  // scales it to use it with the servo (value between 0 and 180) // max: 2000 but We set it 1350 as for safety reason
-  int throttleValue = map(analogValue, 0, 4095, 1160, 1350);
+  // scales it to use it with the servo (value between 0 and 180) // max: 2000 but We set it 1350 as for SAFETY!!!!!
+  int throttleValue = map(analogValue, 0, 4095, 1160, 1350); // exact writing value to esc
   // angle of the potentiometer
-  int angle = map(analogValue, 0, 4095, 0, 270);
+  int angle = map(analogValue, 0, 4095, 0, 270); // just for display the angle of potentionmeter
   // sets the servo position according to the scaled value
   esc.writeMicroseconds(throttleValue);
 
   // motor value display
   // print out the value
-  Serial.print(" Analog value: ");
-  Serial.print(analogValue);
+  Serial.print("ThrottleValue value: ");
+  Serial.print(throttleValue);
   Serial.print(" => angle: ");
-  Serial.print(angle);
-  Serial.print(" => throttleValue: ");
-  Serial.println(throttleValue);
+  Serial.println(angle);
 
 
   if (newDataReady)
@@ -128,22 +124,23 @@ void loop() {
     SerialDataWrite();
   }
 
-  // Voltage Sensor control
+  // Voltage Sensor calculation
   adc_value = analogRead(V_SENSOR_PIN);   // read the state of the the input pin:
   adc_voltage  = (adc_value * ref_voltage) / 4096.0;  // Determine voltage at ADC input // analog read resolution 10 bi(1025)? 12bit(4096)? 
-  in_voltage = adc_voltage / (R2/(R1+R2)) ;    // Calculate voltage at divider input
-
-  Serial.print("adc Voltage = ");
-  Serial.print(adc_value);
+  voltage = adc_voltage / (R2/(R1+R2)) ;    // Calculate voltage at divider input
    
   //Print results to Serial Monitor to 2 decimal places
   Serial.print(" Input Voltage = ");
-  Serial.println(in_voltage, 2);
+  Serial.println(voltage, 2);
 
-  // get the current from the sensor
-  float current = sensor.getCurrentDC();  
+  // get the current from the sensor and display
+  current = sensor.getCurrentDC();  // this current will set with 2 decimal points automatically from on the library
   Serial.print(" Current = ");
   Serial.println(current);
+
+  // final variables
+  // current 
+  // in_voltage
 
    delay(1000);
 }
