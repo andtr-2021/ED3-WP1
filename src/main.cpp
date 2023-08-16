@@ -6,107 +6,94 @@
  * For more detail (instruction and wiring diagram), visit https://esp32io.com/tutorials/esp32-servo-motor-controlled-by-potentiometer
  */
 
-// <Required>
-// Include ESP32Servo
-// Include HX711_ADC
-
 #include <ESP32Servo.h>
 #include <HX711_ADC.h>
 #include <Arduino.h>
+#include "ACS712.h"
+#include <PID_v1.h>
 
-#define PIN_POTENTIOMETER 36 // ESP32 pin GPIO36 (ADC0) onnected to potentiometer
-#define PIN_ESC         26 // ESP32 pin GPIO26 onnected to servo motor
-
+/*#define PIN_POTENTIOMETER 36 // ESP32 pin GPIO36 (ADC0) onnected to potentiometer*/
+#define PIN_ESC         26 // ESP32 pin GPIO26 connected to ESC servo motor
 #define V_SENSOR_PIN  34 // voltage sensor pin
 #define C_SENSOR_PIN  32 // current sensor pin 
+#define LOADCELL_DT_PIN 16
+#define LOADCELL_SCK_PIN 4
 
+#define calibration_factor 430 // Depends on the load cell
 
 Servo esc;  // create servo object to control a servo
+ACS712 sensor(ACS712_05B, C_SENSOR_PIN); // set the 5A current sensor object 
 
-// Floats for ADC voltage & Input voltage
+// Float variables for voltage and current sensors
 float adc_voltage = 0.0;
-float in_voltage = 0.0;
-
+float voltage = 0.0;
+float current = 0.0;
  
-// Floats for resistor values in divider (in ohms)
-float R1 = 30000.0;
-float R2 = 7500.0; 
+// Float variables for resistor values in divider (in ohms) in Voltage sensor // do not touch (it is fixed value)
+// The voltage divider circuit is used to reduce the voltage from a higher source to a level that can be measured by the Arduino.
+float R1 = 30000.0; // 30k ohm
+float R2 = 7500.0; // 7.5k ohm
  
 // Float for Reference Voltage
 // float ref_voltage = 25.2; //voltage from the battery
 // default reference value of the sensor is 5V but I can modify it to 3.3 when I connnect with it
- float ref_voltage = 5;
-// Integer for ADC value
-int adc_value = 0;
+float ref_voltage = 5;  // do not touch (it is fixed value)
+// variable for analog voltage sensor reading
+int adc_value = 0;  
 
-
-#define LOADCELL_DT_PIN 16
-#define LOADCELL_SCK_PIN 4
-
+// Loadcell setup
 HX711_ADC scale(LOADCELL_DT_PIN, LOADCELL_SCK_PIN);
 
-#define calibration_factor 430 // Depends on the load cell
-
+// check if data is ready to be read from the loadcell
 volatile boolean newDataReady;
 
+// variable to store the loadcell data
 float loadcell_data; // measurement from the loadcell in gr
 
 // serial configuration parameters
 unsigned long curr_time = 0, prev_time = 0, dt = 50000; // time interval in us
 
+// PID configuration parameters
+double kp = 0.6, ki = 0.6, kd = 0, input = 0, output = 0, setpoint = 0;
+PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
+
 // functions declarations
 void dataReadyISR();
 void SerialDataWrite();
-
+float floatMap(float x, float in_min, float in_max, float out_min, float out_max);
 
 void setup() {
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
-
+   
+  // voltage sensor setup
   pinMode(V_SENSOR_PIN, INPUT);
-  //Sensor setup
   
-
   // ESC & motor setup
   esc.attach(PIN_ESC); // (pin, min pulse width, max pulse width in microseconds)
   esc.writeMicroseconds(1000); // Initialize the ESC at minimum throttle (adjust if needed)
-  delay(2000);          // Delay to allow the ESC to recognize the minimum throttle position
 
+  // Current sensor setup
+  int zero = sensor.calibrate();
+
+  // Delay to allow the ESC to recognize the minimum throttle position
+  delay(2000);
 
   while (!Serial);
-  // Serial.println("Starting...");
-  // Serial.println("Loadcell calibration, please wait.");
   scale.begin();
   scale.start(2000, true);
   scale.setCalFactor(calibration_factor);
-  // Serial.println("Loadcell calibrated. Press any key to start the main program.");
-  // while (!Serial.available());
-  // Serial.read();
   pinMode(LOADCELL_DT_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(LOADCELL_DT_PIN), dataReadyISR, FALLING);
 
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetSampleTime(50); // Set the sample time for the PID control
+  myPID.SetOutputLimits(0, 180);
+
+  esc.write(1); // send minimum throttle signal to the ESC
 }
 
 void loop() {
-  // potentiometer control
-  // reads the value of the potentiometer (value between 0 and 4095)
-  int analogValue = analogRead(PIN_POTENTIOMETER);
-  // scales it to use it with the servo (value between 0 and 180) // max: 2000 but We set it 1350 as for safety reason
-  int throttleValue = map(analogValue, 0, 4095, 1160, 1350);
-  // angle of the potentiometer
-  int angle = map(analogValue, 0, 4095, 0, 270);
-  // sets the servo position according to the scaled value
-  esc.writeMicroseconds(throttleValue);
-
-  // motor value display
-  // print out the value
-  Serial.print(" Analog value: ");
-  Serial.print(analogValue);
-  Serial.print(" => angle: ");
-  Serial.print(angle);
-  Serial.print(" => throttleValue: ");
-  Serial.println(throttleValue);
-
 
   if (newDataReady)
   {
@@ -120,19 +107,29 @@ void loop() {
     prev_time += dt;
     SerialDataWrite();
   }
+  
+  input = - loadcell_data; // Update the PID input
+  myPID.Compute();       // Calculate new output
+  esc.write(output);
 
-  // Voltage Sensor control
+  // Voltage Sensor calculation
   adc_value = analogRead(V_SENSOR_PIN);   // read the state of the the input pin:
   adc_voltage  = (adc_value * ref_voltage) / 4096.0;  // Determine voltage at ADC input // analog read resolution 10 bi(1025)? 12bit(4096)? 
-  in_voltage = adc_voltage / (R2/(R1+R2)) ;    // Calculate voltage at divider input
-
-  Serial.print("adc Voltage = ");
-  Serial.print(adc_value);
+  voltage = adc_voltage / (R2/(R1+R2)) ;    // Calculate voltage at divider input
    
   //Print results to Serial Monitor to 2 decimal places
   Serial.print(" Input Voltage = ");
-  Serial.println(in_voltage, 2);
-   delay(1000);
+  Serial.println(voltage, 2);
+
+  // get the current from the sensor and display
+  current = sensor.getCurrentDC();  // this current will set with 2 decimal points automatically from on the library
+  Serial.print(" Current = ");
+  Serial.println(current);
+
+  // final variables
+  // current 
+  // in_voltage
+  delay(1000);
 }
 
 void dataReadyISR()
