@@ -13,6 +13,7 @@
 #include <ESP32Servo.h>
 #include <HX711_ADC.h>
 #include <Arduino.h>
+#include <PID_v1.h>
 
 #define PIN_POTENTIOMETER 36 // ESP32 pin GPIO36 (ADC0) onnected to potentiometer
 #define PIN_ESC         26 // ESP32 pin GPIO26 onnected to servo motor
@@ -20,6 +21,11 @@
 #define V_SENSOR_PIN  34 // voltage sensor pin
 #define C_SENSOR_PIN  32 // current sensor pin 
 
+double Setpoint, Input, Output;
+double Kp = 1.0, Ki = 0.0, Kd = 0.0; // Tune these values
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
+
+int pidThrottleValue = 1160; // Initialize to a safe starting value
 
 Servo esc;  // create servo object to control a servo
 
@@ -85,6 +91,12 @@ void setup() {
   pinMode(LOADCELL_DT_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(LOADCELL_DT_PIN), dataReadyISR, FALLING);
 
+
+  Setpoint = 100.0; // Setpoint value (desired load cell reading)
+  Input = 0.0;      // Initial input value (load cell reading)
+  Output = 0.0;     // Initial output value (motor throttle)
+  myPID.SetMode(AUTOMATIC); // Enable PID control
+
 }
 
 void loop() {
@@ -112,6 +124,7 @@ void loop() {
   {
     newDataReady = 0;
     loadcell_data = scale.getData();
+    Input = loadcell_data;
   }
 
   curr_time = micros();
@@ -132,7 +145,24 @@ void loop() {
   //Print results to Serial Monitor to 2 decimal places
   Serial.print(" Input Voltage = ");
   Serial.println(in_voltage, 2);
-   delay(1000);
+  delay(1000);
+
+
+  if (newDataReady) {
+    newDataReady = false;
+    Input = loadcell_data;
+  }
+
+  // Compute PID control
+  myPID.Compute();
+
+  pidThrottleValue = map(Output, 0, 100, 1160, 1350); // Map PID output to motor throttle range
+  esc.writeMicroseconds(throttleValue);
+
+  Serial.print(" => PID output: ");
+  Serial.print(Output);
+  Serial.print(" => pidThrottleValue: ");
+  Serial.println(pidThrottleValue);
 }
 
 void dataReadyISR()
