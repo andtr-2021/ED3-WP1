@@ -13,6 +13,8 @@
 #include <ESP32Servo.h>
 #include <HX711_ADC.h>
 #include <Arduino.h>
+#include "ACS712.h"
+
 
 #define PIN_POTENTIOMETER 36 // ESP32 pin GPIO36 (ADC0) onnected to potentiometer
 #define PIN_ESC         26 // ESP32 pin GPIO26 onnected to servo motor
@@ -20,8 +22,8 @@
 #define V_SENSOR_PIN  34 // voltage sensor pin
 #define C_SENSOR_PIN  32 // current sensor pin 
 
-
 Servo esc;  // create servo object to control a servo
+ACS712 sensor(ACS712_05B, C_SENSOR_PIN); // set the 5A current sensor
 
 // Floats for ADC voltage & Input voltage
 float adc_voltage = 0.0;
@@ -70,7 +72,12 @@ void setup() {
   // ESC & motor setup
   esc.attach(PIN_ESC); // (pin, min pulse width, max pulse width in microseconds)
   esc.writeMicroseconds(1000); // Initialize the ESC at minimum throttle (adjust if needed)
-  delay(2000);          // Delay to allow the ESC to recognize the minimum throttle position
+
+  // Current sensor setup
+  int zero = sensor.calibrate();
+
+   // Delay to allow the ESC to recognize the minimum throttle position
+  delay(2000);
 
 
   while (!Serial);
@@ -132,6 +139,12 @@ void loop() {
   //Print results to Serial Monitor to 2 decimal places
   Serial.print(" Input Voltage = ");
   Serial.println(in_voltage, 2);
+
+  // get the current from the sensor
+  float current = sensor.getCurrentDC();  
+  Serial.print(" Current = ");
+  Serial.println(current);
+
    delay(1000);
 }
 
